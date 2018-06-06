@@ -50,7 +50,7 @@ public class StorageImpl implements Storage {
 			file.transferTo(filePath.toFile());
 			csvDTOS = loadCSV(CsvDTO.class, file.getOriginalFilename());
 
-			csvDTOS.gfilter((f)->g.getDecision().equals("1"))
+			csvDTOS.stream().filter((f)->f.getDecision().equals("1"));
 
 			csvDTOS.removeIf((f) -> f.getDecision().equals("0"));
 
