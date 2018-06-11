@@ -8,7 +8,7 @@ public class CsvDTO {
     private Integer var3;
     private Integer var4;
     private Integer var5;
-    private Integer decision;
+    private String decision;
 
     public Integer getId() {
         return id;
@@ -34,7 +34,7 @@ public class CsvDTO {
         this.var2 = var2;
     }
 
-    public Integer getDecision() {
+    public String getDecision() {
         return decision;
     }
 
@@ -62,7 +62,7 @@ public class CsvDTO {
         this.var5 = var5;
     }
 
-    public void setDecision(Integer decision) {
+    public void setDecision(String decision) {
         this.decision = decision;
     }
 

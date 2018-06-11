@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,11 +14,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 import static org.apache.commons.io.FileUtils.readFileToString;
 
@@ -45,21 +43,55 @@ public class StorageImpl implements Storage {
 		Path filePath = directoryPath.resolve(file.getOriginalFilename());
 
 		List<CsvDTO> csvDTOS;
+        List<CsvDTO> newCsvDTOSList = new ArrayList<>();
 		try {
 			Files.createDirectories(directoryPath);
 			file.transferTo(filePath.toFile());
 			csvDTOS = loadCSV(CsvDTO.class, file.getOriginalFilename());
 
-			csvDTOS.stream().filter((f)->f.getDecision().equals("1"));
+            Comparator<CsvDTO> comparator = Comparator.comparing(CsvDTO::getVar1)
+                    .thenComparing(CsvDTO::getVar2)
+                    .thenComparing(CsvDTO::getVar3)
+                    .thenComparing(CsvDTO::getVar4)
+                    .thenComparing(CsvDTO::getVar5);
 
-			csvDTOS.removeIf((f) -> f.getDecision().equals("0"));
 
-			csvDTOS.forEach(System.out::println);
+            CsvDTO minObject = csvDTOS.stream().filter(line -> line.getDecision().equals("1")).min(comparator).get();
+            CsvDTO  maxObject = csvDTOS.stream().filter(line -> line.getDecision().equals("1")).max(comparator).get();
+			newCsvDTOSList.add(minObject);
+			newCsvDTOSList.add(maxObject);
+
+
+            for (CsvDTO dto : csvDTOS){
+            	if(dto.getDecision().equals("0") &&
+						dto.getVar1()!=null &&  dto.getVar1() >= minObject.getVar1() && dto.getVar1() <= maxObject.getVar1()){
+					newCsvDTOSList.add(dto);
+				}else if(dto.getDecision().equals("0") &&
+						dto.getVar2()!=null &&  dto.getVar2() >= minObject.getVar2() && dto.getVar2() <= maxObject.getVar2()){
+					newCsvDTOSList.add(dto);
+				}else if(dto.getDecision().equals("0") &&
+						dto.getVar3()!=null &&  dto.getVar3() >= minObject.getVar3() && dto.getVar3() <= maxObject.getVar3()){
+					newCsvDTOSList.add(dto);
+				}else if(dto.getDecision().equals("0") &&
+						dto.getVar4()!=null &&  dto.getVar4() >= minObject.getVar4() && dto.getVar4() <= maxObject.getVar4()){
+					newCsvDTOSList.add(dto);
+				}else if(dto.getDecision().equals("0") && dto.getVar5()!=null &&  dto.getVar5() >= minObject.getVar5() && dto.getVar5() <= maxObject.getVar5()){
+					newCsvDTOSList.add(dto);
+				}
+			}
+
+			Comparator<CsvDTO> newComparator = Comparator.comparing(CsvDTO::getId);
+
+			newCsvDTOSList.sort(newComparator);
+			System.out.println("################");
+
+			newCsvDTOSList.forEach(System.out::println);
+
 
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to save file!", e);
 		}
-		return csvDTOS;
+		return newCsvDTOSList;
 	}
 
 	public <T> List<T> loadCSV(Class<T> type, String fileName) {
