@@ -1,9 +1,9 @@
 package com.warwickanalytics.challenge.storage;
 
-import com.warwickanalytics.challenge.dto.CsvDTO;
 import com.fasterxml.jackson.databind.MappingIterator;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvSchema;
+import com.warwickanalytics.challenge.dto.CsvDTO;
 import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -14,104 +14,106 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 import static org.apache.commons.io.FileUtils.readFileToString;
 
 
 @Component
 public class StorageImpl implements Storage {
-	
-	@Value("${csv.storage.root}")
-	private String root;
-	
-	@Value("${csv.storage.directory-csvs}")
-	private String directoryCSV;
-	private static final Logger LOGGER = Logger.getLogger(StorageImpl.class.getName());
+    //specific directory to save uploaded file
+    @Value("${csv.storage.root}")
+    private String root;
+    //directory name where the file is uploaded
+    @Value("${csv.storage.directory-csvs}")
+    private String directoryCSV;
+    private static final Logger LOGGER = Logger.getLogger(StorageImpl.class.getName());
 
-	@Override
-	public List<CsvDTO> uploadAndListCSV(MultipartFile file) {
-		return this.saveFile(file, this.directoryCSV);
-	}
+    @Override
+    public List<CsvDTO> uploadAndListCSV(MultipartFile file) {
+        return this.saveFile(file, this.directoryCSV);
+    }
 
-	private List<CsvDTO> saveFile(MultipartFile file, String directory) {
+    private List<CsvDTO> saveFile(MultipartFile file, String directory) {
 
-		Path directoryPath = Paths.get(this.root, directory);
-		Path filePath = directoryPath.resolve(file.getOriginalFilename());
+        Path directoryPath = Paths.get(this.root, directory);
+        Path filePath = directoryPath.resolve(file.getOriginalFilename());
 
-		List<CsvDTO> csvDTOS;
+        List<CsvDTO> csvDTOList;
         List<CsvDTO> newCsvDTOSList = new ArrayList<>();
-		try {
-			Files.createDirectories(directoryPath);
-			file.transferTo(filePath.toFile());
-			csvDTOS = loadCSV(CsvDTO.class, file.getOriginalFilename());
-
-            Comparator<CsvDTO> comparator = Comparator.comparing(CsvDTO::getVar1)
-                    .thenComparing(CsvDTO::getVar2)
-                    .thenComparing(CsvDTO::getVar3)
-                    .thenComparing(CsvDTO::getVar4)
-                    .thenComparing(CsvDTO::getVar5);
+        try {
+            Files.createDirectories(directoryPath);
+            file.transferTo(filePath.toFile());
+            csvDTOList = loadCSV(CsvDTO.class, file.getOriginalFilename());
+            //conditions to export
+            conditionsExportCsv(csvDTOList, newCsvDTOSList);
 
 
-            CsvDTO minObject = csvDTOS.stream().filter(line -> line.getDecision().equals("1")).min(comparator).get();
-            CsvDTO  maxObject = csvDTOS.stream().filter(line -> line.getDecision().equals("1")).max(comparator).get();
-			newCsvDTOSList.add(minObject);
-			newCsvDTOSList.add(maxObject);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save file!", e);
+        }
+        return newCsvDTOSList;
+    }
 
+    private void conditionsExportCsv(List<CsvDTO> csvDTOList, List<CsvDTO> newCsvDTOSList) {
+        Comparator<CsvDTO> comparator = Comparator.comparing(CsvDTO::getVar1)
+                .thenComparing(CsvDTO::getVar2)
+                .thenComparing(CsvDTO::getVar3)
+                .thenComparing(CsvDTO::getVar4)
+                .thenComparing(CsvDTO::getVar5);
 
-            for (CsvDTO dto : csvDTOS){
-            	if(dto.getDecision().equals("0") &&
-						dto.getVar1()!=null &&  dto.getVar1() >= minObject.getVar1() && dto.getVar1() <= maxObject.getVar1()){
-					newCsvDTOSList.add(dto);
-				}else if(dto.getDecision().equals("0") &&
-						dto.getVar2()!=null &&  dto.getVar2() >= minObject.getVar2() && dto.getVar2() <= maxObject.getVar2()){
-					newCsvDTOSList.add(dto);
-				}else if(dto.getDecision().equals("0") &&
-						dto.getVar3()!=null &&  dto.getVar3() >= minObject.getVar3() && dto.getVar3() <= maxObject.getVar3()){
-					newCsvDTOSList.add(dto);
-				}else if(dto.getDecision().equals("0") &&
-						dto.getVar4()!=null &&  dto.getVar4() >= minObject.getVar4() && dto.getVar4() <= maxObject.getVar4()){
-					newCsvDTOSList.add(dto);
-				}else if(dto.getDecision().equals("0") && dto.getVar5()!=null &&  dto.getVar5() >= minObject.getVar5() && dto.getVar5() <= maxObject.getVar5()){
-					newCsvDTOSList.add(dto);
-				}
-			}
+        //Getting FMIN and FMAX.
+        CsvDTO fmin = csvDTOList.stream().filter(line -> line.getDecision().equals("1")).min(comparator).get();
+        CsvDTO fmax = csvDTOList.stream().filter(line -> line.getDecision().equals("1")).max(comparator).get();
+        newCsvDTOSList.add(fmin);
+        newCsvDTOSList.add(fmax);
 
-			Comparator<CsvDTO> newComparator = Comparator.comparing(CsvDTO::getId);
+        //Have a Decision of 0
+        for (CsvDTO dto : csvDTOList) {
+            if (dto.getDecision().equals("0") &&
+                    dto.getVar1() != null && dto.getVar1() >= fmin.getVar1() && dto.getVar1() <= fmax.getVar1()) {
+                newCsvDTOSList.add(dto);
+            } else if (dto.getDecision().equals("0") &&
+                    dto.getVar2() != null && dto.getVar2() >= fmin.getVar2() && dto.getVar2() <= fmax.getVar2()) {
+                newCsvDTOSList.add(dto);
+            } else if (dto.getDecision().equals("0") &&
+                    dto.getVar3() != null && dto.getVar3() >= fmin.getVar3() && dto.getVar3() <= fmax.getVar3()) {
+                newCsvDTOSList.add(dto);
+            } else if (dto.getDecision().equals("0") &&
+                    dto.getVar4() != null && dto.getVar4() >= fmin.getVar4() && dto.getVar4() <= fmax.getVar4()) {
+                newCsvDTOSList.add(dto);
+            } else if (dto.getDecision().equals("0") && dto.getVar5() != null && dto.getVar5() >= fmin.getVar5() && dto.getVar5() <= fmax.getVar5()) {
+                newCsvDTOSList.add(dto);
+            }
+        }
 
-			newCsvDTOSList.sort(newComparator);
-			System.out.println("################");
+        Comparator<CsvDTO> newComparator = Comparator.comparing(CsvDTO::getId);
 
-			newCsvDTOSList.forEach(System.out::println);
+        newCsvDTOSList.sort(newComparator);
+        System.out.println("################");
+        newCsvDTOSList.forEach(System.out::println);
+    }
 
-
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to save file!", e);
-		}
-		return newCsvDTOSList;
-	}
-
-	public <T> List<T> loadCSV(Class<T> type, String fileName) {
-		try {
-			CsvSchema bootstrapSchema = CsvSchema.emptySchema().withHeader();
-			CsvMapper mapper = new CsvMapper();
-			File file = new File(this.root+directoryCSV+"/"+fileName);
-			String content = readFileToString(file);
-			FileUtils.writeStringToFile(file, content.toLowerCase());
-			MappingIterator<T> readValues =
-					mapper.reader(type).with(bootstrapSchema).readValues(file);
-			return readValues.readAll();
-		} catch (Exception e) {
-			LOGGER.log(Level.SEVERE,"Error occurred while loading object list from file " + fileName, e);
-			return Collections.emptyList();
-		}
-	}
-
-
-
+    public <T> List<T> loadCSV(Class<T> type, String fileName) {
+        try {
+            CsvSchema bootstrapSchema = CsvSchema.emptySchema().withHeader();
+            CsvMapper mapper = new CsvMapper();
+            File file = new File(this.root + directoryCSV + "/" + fileName);
+            String content = readFileToString(file);
+            FileUtils.writeStringToFile(file, content.toLowerCase());
+            MappingIterator<T> readValues =
+                    mapper.reader(type).with(bootstrapSchema).readValues(file);
+            return readValues.readAll();
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error occurred while loading object list from file " + fileName, e);
+            return Collections.emptyList();
+        }
+    }
 
 
 }
